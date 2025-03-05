@@ -85,6 +85,9 @@ class MainWindow(QMainWindow):
             if not data['cluster_number']:
                 raise ValueError("Номер кластера не может быть пустым")
             
+            # Добавляем отладочную информацию
+            print(f"Номер кластера для QR-кода: {data['cluster_number']}")
+            
             # Генерируем форму
             self.generate_pptx_with_data("ШАБЛОН.pptx", data)
             
@@ -107,19 +110,21 @@ class MainWindow(QMainWindow):
             
         slide = prs.slides[0]
         
-        # Добавим отладочную информацию
-        print(f"Количество фигур на слайде: {len(slide.shapes)}")
-        
-        # Создаем QR-код (оставляем как есть)
-        qr = qrcode.QRCode(
-            version=1,
-            error_correction=qrcode.constants.ERROR_CORRECT_L,
-            box_size=10,
-            border=1,
-        )
-        qr.add_data(data['cluster_number'])
-        qr.make(fit=True)
-        qr_image = qr.make_image(fill_color="black", back_color="white")
+        # Создаем QR-код с обработкой ошибок
+        try:
+            qr = qrcode.QRCode(
+                version=1,
+                error_correction=qrcode.constants.ERROR_CORRECT_L,
+                box_size=10,
+                border=1,
+            )
+            print(f"Создание QR-кода для значения: {data['cluster_number']}")
+            qr.add_data(str(data['cluster_number']))  # Явно преобразуем в строку
+            qr.make(fit=True)
+            qr_image = qr.make_image(fill_color="black", back_color="white")
+        except Exception as e:
+            print(f"Ошибка при создании QR-кода: {str(e)}")
+            raise
 
         # Сохраняем QR-код во временный буфер
         image_stream = BytesIO()
@@ -236,11 +241,12 @@ class MainWindow(QMainWindow):
         if not tables_found:
             print("На слайде не найдено ни одной таблицы!")
 
-        # Формируем имя выходного файла
-        output_path = f"маршрутная_карта_{data['cluster_number']}.pptx"
+        # Формируем имя выходного файла, заменяя недопустимые символы
+        cluster_number = data['cluster_number'].replace('/', '_').replace('\\', '_')
+        output_path = f"маршрутная_карта_{cluster_number}.pptx"
         counter = 1
         while os.path.exists(output_path):
-            output_path = f"маршрутная_карта_{data['cluster_number']}_{counter}.pptx"
+            output_path = f"маршрутная_карта_{cluster_number}_{counter}.pptx"
             counter += 1
 
         # Сохраняем результат
