@@ -11,6 +11,8 @@ import os
 from io import BytesIO
 import sys
 from datetime import datetime
+import subprocess  # Добавляем в начало файла
+import time
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -273,21 +275,39 @@ class MainWindow(QMainWindow):
             # Добавляем отладочную информацию
             print(f"Номер кластера для QR-кода: {data['cluster_number']}")
             
-            # Генерируем форму
-            self.generate_pptx_with_data("ШАБЛОН.pptx", data)
+            # Генерируем форму и получаем путь к файлу
+            output_path = self.generate_pptx_with_data("ШАБЛОН.pptx", data)
             
-            QMessageBox.information(self, "Успех", "Форма успешно сгенерирована!")
+            # Печатаем файл
+            try:
+                if sys.platform == 'win32':  # Для Windows
+                    # Используем команду для прямой печати файла
+                    subprocess.run(['powershell', 'Start-Process', '-FilePath', output_path, 
+                                  '-Verb', 'Print', '-WindowStyle', 'Hidden'], shell=True)
+                    # Даем время на отправку на печать
+                    time.sleep(2)  # Ждем 2 секунды
+                    
+                    # Проверяем, запущен ли PowerPoint перед попыткой его закрыть
+                    try:
+                        subprocess.run(['taskkill', '/F', '/IM', 'POWERPNT.EXE'], 
+                                     shell=True, 
+                                     stderr=subprocess.DEVNULL,  # Скрываем сообщение об ошибке
+                                     stdout=subprocess.DEVNULL)
+                    except:
+                        pass  # Игнорируем ошибку, если PowerPoint уже закрыт
+                else:  # Для Linux/Mac
+                    subprocess.run(['lpr', output_path])
+            except Exception as e:
+                print(f"Ошибка при печати: {str(e)}")
+                QMessageBox.warning(self, "Предупреждение", 
+                                  "Файл создан, но не удалось отправить на печать автоматически.\n"
+                                  f"Файл сохранен как: {output_path}")
             
             # Очищаем поля после успешной генерации
             self.clear_fields()
             
-        except FileNotFoundError as e:
-            QMessageBox.critical(self, "Ошибка", str(e))
-        except ValueError as e:
-            QMessageBox.critical(self, "Ошибка", str(e))
         except Exception as e:
-            QMessageBox.critical(self, "Ошибка", f"Неожиданная ошибка: {str(e)}\n\n"
-                               f"Тип ошибки: {type(e).__name__}")
+            QMessageBox.critical(self, "Ошибка", f"Неожиданная ошибка: {str(e)}")
 
     def generate_pptx_with_data(self, template_path, data):
         # Открываем шаблон
@@ -462,6 +482,9 @@ class MainWindow(QMainWindow):
 
         # Сохраняем результат
         prs.save(output_path)
+        
+        # Возвращаем путь к сохраненному файлу
+        return output_path
 
     def show(self):
         self.setWindowOpacity(1.0)  # Устанавливаем непрозрачность сразу
