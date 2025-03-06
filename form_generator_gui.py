@@ -5,6 +5,7 @@ from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
 from PySide6.QtCore import Qt, QDate, QTime, QPropertyAnimation, QEasingCurve
 from PySide6.QtGui import QFont
 from pptx import Presentation
+from pptx.util import Pt
 import qrcode
 import os
 from io import BytesIO
@@ -350,10 +351,19 @@ class MainWindow(QMainWindow):
                 if "Номер" in table_header:
                     print("Обрабатываем таблицу с номером отливки")
                     try:
-                        # Заполняем только данные отливки
-                        table.cell(1, 0).text = data['cast_number']
-                        table.cell(1, 1).text = data['cast_name']
-                        table.cell(1, 2).text = data['cluster_number']
+                        # Заполняем данные отливки с маленьким жирным шрифтом
+                        for col in range(3):
+                            cell = table.cell(1, col)
+                            paragraph = cell.text_frame.paragraphs[0]
+                            run = paragraph.runs[0] if paragraph.runs else paragraph.add_run()
+                            if col == 0:
+                                run.text = data['cast_number']
+                            elif col == 1:
+                                run.text = data['cast_name']
+                            else:
+                                run.text = data['cluster_number']
+                            run.font.size = Pt(9)
+                            run.font.bold = True  # Делаем шрифт жирным
                     except Exception as e:
                         print(f"Ошибка при заполнении данных отливки: {str(e)}")
                     continue  # Переходим к следующей таблице
@@ -389,37 +399,50 @@ class MainWindow(QMainWindow):
                             # Заполняем данные для Склейки
                             if "Склейка элементов п/м" in operation:
                                 print("Найдена строка Склейки")
-                                if 'date' in column_indices:
-                                    table.cell(row, column_indices['date']).text = data['gluing_date']
-                                if 'executor' in column_indices:
-                                    table.cell(row, column_indices['executor']).text = data['gluing_executor']
-                                if 'quantity' in column_indices:
-                                    table.cell(row, column_indices['quantity']).text = data['gluing_quantity']
-                                if 'notes' in column_indices:
-                                    table.cell(row, column_indices['notes']).text = data['gluing_notes']
+                                for col_name, col_idx in column_indices.items():
+                                    cell = table.cell(row, col_idx)
+                                    paragraph = cell.text_frame.paragraphs[0]
+                                    run = paragraph.runs[0] if paragraph.runs else paragraph.add_run()
+                                    if col_name == 'date':
+                                        run.text = data['gluing_date']
+                                    elif col_name == 'executor':
+                                        run.text = data['gluing_executor']
+                                    elif col_name == 'quantity':
+                                        run.text = data['gluing_quantity']
+                                    elif col_name == 'notes':
+                                        run.text = data['gluing_notes']
+                                    run.font.size = Pt(9)
+                                    run.font.bold = True  # Делаем шрифт жирным
                             
                             # Заполняем данные для Контроля
                             if "Контроль сборки кластера" in operation:
                                 print("Найдена строка Контроля")
-                                if 'date' in column_indices:
-                                    # Записываем дату
-                                    table.cell(row, column_indices['date']).text = data['control_date']
-                                    
-                                    # Ищем ячейку со значением "Время:"
-                                    for r in range(len(table.rows)):
-                                        for c in range(len(table.columns)):
-                                            cell_text = table.cell(r, c).text.strip()
-                                            if cell_text == "Время:":
-                                                print("Найдена ячейка 'Время:'")
-                                                # Записываем время в ячейку справа
-                                                if c + 1 < len(table.columns):
-                                                    table.cell(r, c + 1).text = data['control_time']
+                                for col_name, col_idx in column_indices.items():
+                                    cell = table.cell(row, col_idx)
+                                    paragraph = cell.text_frame.paragraphs[0]
+                                    run = paragraph.runs[0] if paragraph.runs else paragraph.add_run()
+                                    if col_name == 'date':
+                                        run.text = data['control_date']
+                                    elif col_name == 'executor':
+                                        run.text = data['control_executor']
+                                    elif col_name == 'quantity':
+                                        run.text = data['control_quantity']
+                                    elif col_name == 'notes':
+                                        run.text = data['control_notes']
+                                    run.font.size = Pt(9)
+                                    run.font.bold = True  # Делаем шрифт жирным
                                 
-                                if 'executor' in column_indices:
-                                    table.cell(row, column_indices['executor']).text = data['control_executor']
-                                    table.cell(row, column_indices['quantity']).text = data['control_quantity']
-                                    table.cell(row, column_indices['notes']).text = data['control_notes']
-                                
+                                # Для времени контроля
+                                for r in range(len(table.rows)):
+                                    for c in range(len(table.columns)):
+                                        if table.cell(r, c).text.strip() == "Время:":
+                                            cell = table.cell(r, c + 1)
+                                            paragraph = cell.text_frame.paragraphs[0]
+                                            run = paragraph.runs[0] if paragraph.runs else paragraph.add_run()
+                                            run.text = data['control_time']
+                                            run.font.size = Pt(9)
+                                            run.font.bold = True  # Делаем шрифт жирным
+
                         except Exception as e:
                             print(f"Ошибка при обработке строки {row}: {str(e)}")
                             
