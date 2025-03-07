@@ -23,9 +23,6 @@ class MainWindow(QMainWindow):
         self.setMinimumWidth(800)
         self.setMinimumHeight(900)
         
-        # Добавляем атрибут для хранения анимации
-        self.fade_animation = None
-        
         # Устанавливаем общий стиль приложения
         self.setStyleSheet("""
             QMainWindow {
@@ -284,17 +281,10 @@ class MainWindow(QMainWindow):
                     data[field] = widget.date().toString("dd.MM.yyyy")
                 elif isinstance(widget, QTimeEdit):
                     data[field] = widget.time().toString("HH:mm")
-                elif isinstance(widget, QComboBox):  # Добавляем обработку QComboBox
+                elif isinstance(widget, QComboBox):
                     data[field] = widget.currentText()
                 else:
                     data[field] = widget.text()
-            
-            # Проверяем, что номер кластера не пустой
-            if not data['cluster_number']:
-                raise ValueError("Номер кластера не может быть пустым")
-            
-            # Добавляем отладочную информацию
-            print(f"Номер кластера для QR-кода: {data['cluster_number']}")
             
             # Генерируем форму и получаем путь к файлу
             output_path = self.generate_pptx_with_data("ШАБЛОН.pptx", data)
@@ -312,14 +302,12 @@ class MainWindow(QMainWindow):
                     # Используем команду для прямой печати файла
                     subprocess.run(['powershell', 'Start-Process', '-FilePath', output_path, 
                                   '-Verb', 'Print', '-WindowStyle', 'Hidden'], shell=True)
-                    # Даем время на отправку на печать
+                    # Даем время на отправку на печать и закрываем PowerPoint
                     time.sleep(2)  # Ждем 2 секунды
-                    
-                    # Проверяем, запущен ли PowerPoint перед попыткой его закрыть
                     try:
                         subprocess.run(['taskkill', '/F', '/IM', 'POWERPNT.EXE'], 
                                      shell=True, 
-                                     stderr=subprocess.DEVNULL,  # Скрываем сообщение об ошибке
+                                     stderr=subprocess.DEVNULL,
                                      stdout=subprocess.DEVNULL)
                     except:
                         pass  # Игнорируем ошибку, если PowerPoint уже закрыт
@@ -331,8 +319,11 @@ class MainWindow(QMainWindow):
                                   "Файл создан, но не удалось отправить на печать автоматически.\n"
                                   f"Файл сохранен как: {output_path}")
             
-            # Очищаем поля после успешной генерации
+            # Очищаем поля после успешной генерации и печати
             self.clear_fields()
+            
+            # Устанавливаем текущую дату и время после очистки
+            self.set_current_datetime()
             
         except Exception as e:
             QMessageBox.critical(self, "Ошибка", f"Неожиданная ошибка: {str(e)}")
@@ -587,7 +578,11 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, event):
         """Закрываем соединение с базой при закрытии приложения"""
-        self.db_conn.close()
+        try:
+            if hasattr(self, 'db_conn'):
+                self.db_conn.close()
+        except Exception as e:
+            print(f"Ошибка при закрытии соединения с БД: {e}")
         event.accept()
 
 def main():

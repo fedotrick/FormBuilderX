@@ -1,4 +1,4 @@
-PySide6
-python-pptx
-qrcode
-Pillow 
+PySide6>=6.4.0
+python-pptx>=0.6.21
+qrcode>=7.3
+Pillow>=9.3.0 

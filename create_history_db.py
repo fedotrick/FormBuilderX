@@ -3,38 +3,43 @@ import re
 from datetime import datetime
 
 def create_history_database():
-    # Подключаемся к базе данных (создаст файл, если его нет)
-    conn = sqlite3.connect('история_форм.db')
-    cursor = conn.cursor()
+    # Добавить обработку ошибок:
+    try:
+        conn = sqlite3.connect('история_форм.db')
+        cursor = conn.cursor()
 
-    # Создаем таблицу для хранения истории форм
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS "Маршрутные_Карты" (
-            "ИД" INTEGER PRIMARY KEY AUTOINCREMENT,
-            "Номер_Кластера" TEXT NOT NULL,
-            "Номер_Отливки" TEXT,
-            "Наименование_Отливки" TEXT,
-            "Дата_Склейки" TEXT,
-            "Исполнитель_Склейки" TEXT,
-            "Количество_Склейки" TEXT,
-            "Примечание_Склейки" TEXT,
-            "Дата_Контроля" TEXT,
-            "Время_Контроля" TEXT,
-            "Исполнитель_Контроля" TEXT,
-            "Количество_Контроля" TEXT,
-            "Примечание_Контроля" TEXT,
-            "Дата_Создания" TEXT
-        )
-    ''')
+        # Создаем таблицу для хранения истории форм
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS "Маршрутные_Карты" (
+                "ИД" INTEGER PRIMARY KEY AUTOINCREMENT,
+                "Номер_Кластера" TEXT NOT NULL,
+                "Номер_Отливки" TEXT,
+                "Наименование_Отливки" TEXT,
+                "Дата_Склейки" TEXT,
+                "Исполнитель_Склейки" TEXT,
+                "Количество_Склейки" TEXT,
+                "Примечание_Склейки" TEXT,
+                "Дата_Контроля" TEXT,
+                "Время_Контроля" TEXT,
+                "Исполнитель_Контроля" TEXT,
+                "Количество_Контроля" TEXT,
+                "Примечание_Контроля" TEXT,
+                "Дата_Создания" TEXT
+            )
+        ''')
 
-    # Создаем уникальный индекс для номера кластера
-    cursor.execute('''
-        CREATE UNIQUE INDEX IF NOT EXISTS "idx_номер_кластера" 
-        ON "Маршрутные_Карты" ("Номер_Кластера")
-    ''')
+        # Создаем уникальный индекс для номера кластера
+        cursor.execute('''
+            CREATE UNIQUE INDEX IF NOT EXISTS "idx_номер_кластера" 
+            ON "Маршрутные_Карты" ("Номер_Кластера")
+        ''')
 
-    conn.commit()
-    conn.close()
+        conn.commit()
+    except Exception as e:
+        print(f"Ошибка при создании базы данных: {e}")
+        raise
+    finally:
+        conn.close()
 
 def validate_cluster_number(number):
     """Проверяет формат номера кластера"""
@@ -101,6 +106,10 @@ def get_next_cluster_number(date_str):
     Генерирует следующий номер кластера на основе даты склейки
     date_str: строка в формате dd.MM.yyyy
     """
+    # Добавить проверку входных данных:
+    if not date_str or len(date_str.split('.')) != 3:
+        raise ValueError("Неверный формат даты. Ожидается dd.MM.yyyy")
+    
     # Разбираем дату
     day, month, year = map(int, date_str.split('.'))
     year_short = str(year)[-2:]  # Берем последние 2 цифры года
