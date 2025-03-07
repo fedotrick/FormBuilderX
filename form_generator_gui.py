@@ -1,7 +1,7 @@
 from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
                              QHBoxLayout, QLabel, QLineEdit, QPushButton, 
                              QFileDialog, QFormLayout, QMessageBox, QGroupBox,
-                             QDateEdit, QTimeEdit)
+                             QDateEdit, QTimeEdit, QComboBox)
 from PySide6.QtCore import Qt, QDate, QTime, QPropertyAnimation, QEasingCurve
 from PySide6.QtGui import QFont
 from pptx import Presentation
@@ -13,6 +13,7 @@ import sys
 from datetime import datetime
 import subprocess  # Добавляем в начало файла
 import time
+import sqlite3
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -99,10 +100,17 @@ class MainWindow(QMainWindow):
         main_layout.setSpacing(20)
         main_layout.setContentsMargins(20, 20, 20, 20)
 
+        # Подключаемся к базе данных
+        self.db_conn = sqlite3.connect('справочник.db')
+        self.db_cursor = self.db_conn.cursor()
+
         # Создаем группы полей
         self.create_cast_group()
         self.create_gluing_group()
         self.create_control_group()
+
+        # Загружаем данные из справочника
+        self.load_reference_data()
 
         # Добавляем группы в основной layout
         main_layout.addWidget(self.cast_group)
@@ -137,19 +145,23 @@ class MainWindow(QMainWindow):
     def create_cast_group(self):
         self.cast_group = QGroupBox("Информация об отливке")
         layout = QFormLayout()
-        layout.setSpacing(15)  # Увеличиваем отступы между полями
-        layout.setContentsMargins(20, 20, 20, 20)  # Добавляем отступы внутри группы
+        layout.setSpacing(15)
+        layout.setContentsMargins(20, 20, 20, 20)
 
         self.fields = {}
-        # Создаем поля для отливки
-        self.fields['cast_number'] = QLineEdit()
-        self.fields['cast_name'] = QLineEdit()
-        self.fields['cluster_number'] = QLineEdit()
+        
+        # Создаем выпадающие списки для номера и наименования отливки
+        self.fields['cast_number'] = QComboBox()
+        self.fields['cast_name'] = QComboBox()
+        self.fields['cluster_number'] = QLineEdit()  # Оставляем как текстовое поле
 
         # Добавляем подсказки
-        self.fields['cast_number'].setPlaceholderText("Введите номер отливки")
-        self.fields['cast_name'].setPlaceholderText("Введите наименование отливки")
+        self.fields['cast_number'].setPlaceholderText("Выберите номер отливки")
+        self.fields['cast_name'].setPlaceholderText("Выберите наименование отливки")
         self.fields['cluster_number'].setPlaceholderText("Введите номер кластера")
+
+        # Связываем изменение номера с обновлением наименования
+        self.fields['cast_number'].currentIndexChanged.connect(self.update_cast_name)
 
         layout.addRow(self.create_label("Номер отливки (модели):"), self.fields['cast_number'])
         layout.addRow(self.create_label("Наименование отливки (модели):"), self.fields['cast_name'])
@@ -165,14 +177,14 @@ class MainWindow(QMainWindow):
 
         # Создаем поля для склейки
         self.fields['gluing_date'] = QDateEdit()
-        self.fields['gluing_date'].setCalendarPopup(True)  # Включаем выпадающий календарь
-        self.fields['gluing_date'].setDisplayFormat("dd.MM.yyyy")  # Формат отображения даты
-        self.fields['gluing_executor'] = QLineEdit()
+        self.fields['gluing_date'].setCalendarPopup(True)
+        self.fields['gluing_date'].setDisplayFormat("dd.MM.yyyy")
+        self.fields['gluing_executor'] = QComboBox()  # Меняем на QComboBox
         self.fields['gluing_quantity'] = QLineEdit()
         self.fields['gluing_notes'] = QLineEdit()
 
         # Добавляем подсказки
-        self.fields['gluing_executor'].setPlaceholderText("Введите ФИО исполнителя")
+        self.fields['gluing_executor'].setPlaceholderText("Выберите исполнителя")
         self.fields['gluing_quantity'].setPlaceholderText("Введите количество")
         self.fields['gluing_notes'].setPlaceholderText("Введите примечания")
 
@@ -191,18 +203,18 @@ class MainWindow(QMainWindow):
 
         # Создаем поля для контроля
         self.fields['control_date'] = QDateEdit()
-        self.fields['control_date'].setCalendarPopup(True)  # Включаем выпадающий календарь
-        self.fields['control_date'].setDisplayFormat("dd.MM.yyyy")  # Формат отображения даты
+        self.fields['control_date'].setCalendarPopup(True)
+        self.fields['control_date'].setDisplayFormat("dd.MM.yyyy")
         
         self.fields['control_time'] = QTimeEdit()
-        self.fields['control_time'].setDisplayFormat("HH:mm")  # Формат отображения времени
+        self.fields['control_time'].setDisplayFormat("HH:mm")
         
-        self.fields['control_executor'] = QLineEdit()
+        self.fields['control_executor'] = QComboBox()  # Меняем на QComboBox
         self.fields['control_quantity'] = QLineEdit()
         self.fields['control_notes'] = QLineEdit()
 
         # Добавляем подсказки
-        self.fields['control_executor'].setPlaceholderText("Введите ФИО исполнителя")
+        self.fields['control_executor'].setPlaceholderText("Выберите контролера")
         self.fields['control_quantity'].setPlaceholderText("Введите количество")
         self.fields['control_notes'].setPlaceholderText("Введите примечания")
 
@@ -265,6 +277,8 @@ class MainWindow(QMainWindow):
                     data[field] = widget.date().toString("dd.MM.yyyy")
                 elif isinstance(widget, QTimeEdit):
                     data[field] = widget.time().toString("HH:mm")
+                elif isinstance(widget, QComboBox):  # Добавляем обработку QComboBox
+                    data[field] = widget.currentText()
                 else:
                     data[field] = widget.text()
             
@@ -489,6 +503,63 @@ class MainWindow(QMainWindow):
     def show(self):
         self.setWindowOpacity(1.0)  # Устанавливаем непрозрачность сразу
         super().show()  # Показываем окно
+
+    def load_reference_data(self):
+        """Загрузка справочных данных из базы"""
+        try:
+            # Загружаем данные отливок
+            self.db_cursor.execute('SELECT "Номер", "Наименование" FROM "ЛГМ_Отливки"')
+            lgm_casts = self.db_cursor.fetchall()
+            self.db_cursor.execute('SELECT "Номер", "Наименование" FROM "ЛПД_Отливки"')
+            lpd_casts = self.db_cursor.fetchall()
+            self.db_cursor.execute('SELECT "Наименование" FROM "Прочие_Отливки"')
+            other_casts = self.db_cursor.fetchall()
+
+            # Заполняем выпадающие списки номеров и наименований отливок
+            self.cast_numbers_data = {}  # Словарь для хранения соответствия номер-наименование
+            
+            # Очищаем списки перед заполнением
+            self.fields['cast_number'].clear()
+            self.fields['cast_name'].clear()
+            
+            # Добавляем ЛГМ и ЛПД отливки
+            for number, name in lgm_casts + lpd_casts:
+                self.fields['cast_number'].addItem(number)
+                self.fields['cast_name'].addItem(name)
+                self.cast_numbers_data[number] = name
+            
+            # Добавляем прочие отливки
+            for (name,) in other_casts:
+                self.fields['cast_number'].addItem(name)
+                self.fields['cast_name'].addItem(name)
+                self.cast_numbers_data[name] = name
+
+            # Загружаем сборщиков
+            self.db_cursor.execute('SELECT "ФИО" FROM "Сборщики"')
+            assemblers = [row[0] for row in self.db_cursor.fetchall()]
+            self.fields['gluing_executor'].addItems(assemblers)
+
+            # Загружаем контролеров сборки
+            self.db_cursor.execute('SELECT "ФИО" FROM "Контролеры_Сборки"')
+            controllers = [row[0] for row in self.db_cursor.fetchall()]
+            self.fields['control_executor'].addItems(controllers)
+
+        except Exception as e:
+            print(f"Ошибка при загрузке справочных данных: {e}")
+
+    def update_cast_name(self, index):
+        """Обновляет поле наименования при выборе номера отливки"""
+        current_number = self.fields['cast_number'].currentText()
+        if current_number in self.cast_numbers_data:
+            name = self.cast_numbers_data[current_number]
+            index = self.fields['cast_name'].findText(name)
+            if index >= 0:
+                self.fields['cast_name'].setCurrentIndex(index)
+
+    def closeEvent(self, event):
+        """Закрываем соединение с базой при закрытии приложения"""
+        self.db_conn.close()
+        event.accept()
 
 def main():
     app = QApplication(sys.argv)
