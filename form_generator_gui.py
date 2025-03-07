@@ -14,6 +14,7 @@ from datetime import datetime
 import subprocess  # Добавляем в начало файла
 import time
 import sqlite3
+from create_history_db import save_form_data, validate_cluster_number
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -240,11 +241,20 @@ class MainWindow(QMainWindow):
         self.fields['control_time'].setTime(current_time)
 
     def validate_fields(self):
-        required_fields = ['cluster_number']
-        for field in required_fields:
-            if not self.fields[field].text().strip():
-                return False, f"Поле '{field}' обязательно для заполнения"
-        return True, ""
+        """Проверяет корректность заполнения полей"""
+        try:
+            # Проверяем обязательные поля
+            required_fields = ['cluster_number']
+            for field in required_fields:
+                if not self.fields[field].text().strip():
+                    return False, f"Поле '{field}' обязательно для заполнения"
+            
+            # Проверяем формат номера кластера
+            validate_cluster_number(self.fields['cluster_number'].text().strip())
+            
+            return True, ""
+        except ValueError as e:
+            return False, str(e)
 
     def clear_fields(self):
         # Очищаем все поля, кроме дат и времени
@@ -291,6 +301,13 @@ class MainWindow(QMainWindow):
             
             # Генерируем форму и получаем путь к файлу
             output_path = self.generate_pptx_with_data("ШАБЛОН.pptx", data)
+            
+            # Сохраняем данные в базу истории
+            try:
+                save_form_data(data)
+            except ValueError as e:
+                QMessageBox.warning(self, "Предупреждение", str(e))
+                return
             
             # Печатаем файл
             try:
