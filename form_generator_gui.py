@@ -14,7 +14,7 @@ from datetime import datetime
 import subprocess  # Добавляем в начало файла
 import time
 import sqlite3
-from create_history_db import save_form_data, validate_cluster_number
+from create_history_db import save_form_data, validate_cluster_number, get_next_cluster_number
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -124,20 +124,8 @@ class MainWindow(QMainWindow):
         self.generate_btn = QPushButton("Сгенерировать")
         self.generate_btn.setFixedWidth(200)
         self.generate_btn.setFixedHeight(40)
-        self.generate_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #4CAF50;
-                color: white;
-                border-radius: 5px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #45a049;
-            }
-        """)
         self.generate_btn.clicked.connect(self.generate_form)
         button_layout.addWidget(self.generate_btn)
-
         main_layout.addLayout(button_layout)
         
         # Устанавливаем текущую дату и время
@@ -154,19 +142,28 @@ class MainWindow(QMainWindow):
         # Создаем выпадающие списки для номера и наименования отливки
         self.fields['cast_number'] = QComboBox()
         self.fields['cast_name'] = QComboBox()
-        self.fields['cluster_number'] = QLineEdit()  # Оставляем как текстовое поле
+        self.fields['cluster_number'] = QLineEdit()
 
         # Добавляем подсказки
         self.fields['cast_number'].setPlaceholderText("Выберите номер отливки")
         self.fields['cast_name'].setPlaceholderText("Выберите наименование отливки")
-        self.fields['cluster_number'].setPlaceholderText("Введите номер кластера")
+        self.fields['cluster_number'].setPlaceholderText("Нажмите 'Сгенерировать номер'")
 
         # Связываем изменение номера с обновлением наименования
         self.fields['cast_number'].currentIndexChanged.connect(self.update_cast_name)
 
+        # Создаем горизонтальный layout для поля номера кластера и кнопки
+        number_layout = QHBoxLayout()
+        number_layout.addWidget(self.fields['cluster_number'])
+        
+        # Создаем и добавляем кнопку генерации номера
+        self.generate_number_btn = QPushButton("Сгенерировать номер")
+        self.generate_number_btn.clicked.connect(self.generate_cluster_number)
+        number_layout.addWidget(self.generate_number_btn)
+
         layout.addRow(self.create_label("Номер отливки (модели):"), self.fields['cast_number'])
         layout.addRow(self.create_label("Наименование отливки (модели):"), self.fields['cast_name'])
-        layout.addRow(self.create_label("Номер кластера:"), self.fields['cluster_number'])
+        layout.addRow(self.create_label("Номер кластера:"), number_layout)
 
         self.cast_group.setLayout(layout)
 
@@ -572,6 +569,21 @@ class MainWindow(QMainWindow):
             index = self.fields['cast_name'].findText(name)
             if index >= 0:
                 self.fields['cast_name'].setCurrentIndex(index)
+
+    def generate_cluster_number(self):
+        """Генерирует и устанавливает номер кластера на основе даты склейки"""
+        try:
+            # Получаем дату склейки
+            gluing_date = self.fields['gluing_date'].date().toString("dd.MM.yyyy")
+            
+            # Генерируем следующий номер кластера
+            next_number = get_next_cluster_number(gluing_date)
+            
+            # Устанавливаем номер в поле
+            self.fields['cluster_number'].setText(next_number)
+            
+        except Exception as e:
+            QMessageBox.warning(self, "Предупреждение", str(e))
 
     def closeEvent(self, event):
         """Закрываем соединение с базой при закрытии приложения"""

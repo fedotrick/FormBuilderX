@@ -96,6 +96,47 @@ def save_form_data(data):
     finally:
         conn.close()
 
+def get_next_cluster_number(date_str):
+    """
+    Генерирует следующий номер кластера на основе даты склейки
+    date_str: строка в формате dd.MM.yyyy
+    """
+    # Разбираем дату
+    day, month, year = map(int, date_str.split('.'))
+    year_short = str(year)[-2:]  # Берем последние 2 цифры года
+    
+    conn = sqlite3.connect('история_форм.db')
+    cursor = conn.cursor()
+    
+    try:
+        # Ищем последний номер для этого месяца и года
+        cursor.execute('''
+            SELECT "Номер_Кластера"
+            FROM "Маршрутные_Карты"
+            WHERE "Номер_Кластера" LIKE ?
+            ORDER BY "Номер_Кластера" DESC
+            LIMIT 1
+        ''', (f'К{year_short}/{month:02d}-%',))
+        
+        result = cursor.fetchone()
+        
+        if result:
+            # Если есть номера для этого месяца, увеличиваем последний на 1
+            last_number = int(result[0][-3:])
+            next_number = last_number + 1
+            if next_number > 999:
+                raise ValueError("Превышено максимальное количество кластеров для этого месяца (999)")
+        else:
+            # Если нет номеров для этого месяца, начинаем с 001
+            next_number = 1
+        
+        # Формируем новый номер кластера
+        new_cluster_number = f'К{year_short}/{month:02d}-{next_number:03d}'
+        return new_cluster_number
+        
+    finally:
+        conn.close()
+
 if __name__ == "__main__":
     create_history_database()
     print("База данных истории форм успешно создана.") 
