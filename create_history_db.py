@@ -15,6 +15,7 @@ def create_history_database():
                 "Номер_Кластера" TEXT NOT NULL,
                 "Номер_Отливки" TEXT,
                 "Наименование_Отливки" TEXT,
+                "Отливка" TEXT,
                 "Дата_Склейки" TEXT,
                 "Исполнитель_Склейки" TEXT,
                 "Количество_Склейки" TEXT,
@@ -56,50 +57,69 @@ def validate_cluster_number(number):
         raise ValueError("Неверный номер месяца в номере кластера (должен быть от 01 до 12)")
 
 def save_form_data(data):
-    """Сохраняет данные формы в базу"""
-    # Проверяем формат номера кластера
-    validate_cluster_number(data['cluster_number'])
-
     conn = sqlite3.connect('история_форм.db')
     cursor = conn.cursor()
-
-    try:
-        cursor.execute('''
-            INSERT INTO "Маршрутные_Карты" (
-                "Номер_Кластера",
-                "Номер_Отливки",
-                "Наименование_Отливки",
-                "Дата_Склейки",
-                "Исполнитель_Склейки",
-                "Количество_Склейки",
-                "Примечание_Склейки",
-                "Дата_Контроля",
-                "Время_Контроля",
-                "Исполнитель_Контроля",
-                "Количество_Контроля",
-                "Примечание_Контроля",
-                "Дата_Создания"
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (
-            data['cluster_number'],
-            data['cast_number'],
-            data['cast_name'],
-            data['gluing_date'],
-            data['gluing_executor'],
-            data['gluing_quantity'],
-            data['gluing_notes'],
-            data['control_date'],
-            data['control_time'],
-            data['control_executor'],
-            data['control_quantity'],
-            data['control_notes'],
-            datetime.now().strftime("%d.%m.%Y %H:%M:%S")
-        ))
-        conn.commit()
-    except sqlite3.IntegrityError:
-        raise ValueError(f"Кластер с номером {data['cluster_number']} уже существует в базе")
-    finally:
-        conn.close()
+    
+    # Определяем тип отливки и формируем строку отливки
+    ref_conn = sqlite3.connect('справочник.db')
+    ref_cursor = ref_conn.cursor()
+    
+    cast_string = ""
+    
+    # Проверяем в ЛГМ
+    ref_cursor.execute('SELECT "Наименование" FROM "ЛГМ_Отливки" WHERE "Номер" = ?', (data['cast_number'],))
+    result = ref_cursor.fetchone()
+    if result:
+        cast_string = f"{result[0]} {data['cast_number']}"
+    else:
+        # Проверяем в ЛПД
+        ref_cursor.execute('SELECT "Наименование" FROM "ЛПД_Отливки" WHERE "Номер" = ?', (data['cast_number'],))
+        result = ref_cursor.fetchone()
+        if result:
+            cast_string = f"{data['cast_number']} {result[0]}"
+        else:
+            # Если не найдено в ЛГМ и ЛПД, значит это из Прочие
+            cast_string = data['cast_name']
+    
+    ref_conn.close()
+    
+    # Добавляем новую запись
+    cursor.execute('''
+        INSERT INTO "Маршрутные_Карты" (
+            "Номер_Кластера",
+            "Номер_Отливки",
+            "Наименование_Отливки",
+            "Отливка",
+            "Дата_Склейки",
+            "Исполнитель_Склейки",
+            "Количество_Склейки",
+            "Примечание_Склейки",
+            "Дата_Контроля",
+            "Время_Контроля",
+            "Исполнитель_Контроля",
+            "Количество_Контроля",
+            "Примечание_Контроля",
+            "Дата_Создания"
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ''', (
+        data['cluster_number'],
+        data['cast_number'],
+        data['cast_name'],
+        cast_string,
+        data['gluing_date'],
+        data['gluing_executor'],
+        data['gluing_quantity'],
+        data['gluing_notes'],
+        data['control_date'],
+        data['control_time'],
+        data['control_executor'],
+        data['control_quantity'],
+        data['control_notes'],
+        datetime.now().strftime("%d.%m.%Y %H:%M:%S")
+    ))
+    
+    conn.commit()
+    conn.close()
 
 def get_next_cluster_number(date_str):
     """

@@ -148,6 +148,8 @@ class MainWindow(QMainWindow):
 
         # Связываем изменение номера с обновлением наименования
         self.fields['cast_number'].currentIndexChanged.connect(self.update_cast_name)
+        # Связываем изменение наименования с обновлением номера
+        self.fields['cast_name'].currentIndexChanged.connect(self.update_cast_number)
 
         # Создаем горизонтальный layout для поля номера кластера и кнопки
         number_layout = QHBoxLayout()
@@ -251,10 +253,12 @@ class MainWindow(QMainWindow):
             return False, str(e)
 
     def clear_fields(self):
-        # Очищаем все поля, кроме дат и времени
+        """Очищает все поля формы"""
         for field_name, widget in self.fields.items():
             if isinstance(widget, QLineEdit):
                 widget.clear()
+            elif isinstance(widget, QComboBox):
+                widget.setCurrentIndex(-1)  # Сбрасываем выбор в комбобоксах
             elif isinstance(widget, (QDateEdit, QTimeEdit)):
                 # Для полей даты и времени устанавливаем текущие значения
                 continue
@@ -491,18 +495,22 @@ class MainWindow(QMainWindow):
         if not tables_found:
             print("На слайде не найдено ни одной таблицы!")
 
-        # Формируем имя выходного файла, заменяя недопустимые символы
+        # Создаем директорию для сохранения форм, если её нет
+        forms_dir = "маршрутные_карты"
+        if not os.path.exists(forms_dir):
+            os.makedirs(forms_dir)
+
+        # Формируем имя выходного файла
         cluster_number = data['cluster_number'].replace('/', '_').replace('\\', '_')
-        output_path = f"маршрутная_карта_{cluster_number}.pptx"
+        output_path = os.path.join(forms_dir, f"маршрутная_карта_{cluster_number}.pptx")
         counter = 1
         while os.path.exists(output_path):
-            output_path = f"маршрутная_карта_{cluster_number}_{counter}.pptx"
+            output_path = os.path.join(forms_dir, f"маршрутная_карта_{cluster_number}_{counter}.pptx")
             counter += 1
 
         # Сохраняем результат
         prs.save(output_path)
         
-        # Возвращаем путь к сохраненному файлу
         return output_path
 
     def show(self):
@@ -520,24 +528,35 @@ class MainWindow(QMainWindow):
             self.db_cursor.execute('SELECT "Наименование" FROM "Прочие_Отливки"')
             other_casts = self.db_cursor.fetchall()
 
-            # Заполняем выпадающие списки номеров и наименований отливок
-            self.cast_numbers_data = {}  # Словарь для хранения соответствия номер-наименование
-            
             # Очищаем списки перед заполнением
             self.fields['cast_number'].clear()
             self.fields['cast_name'].clear()
             
-            # Добавляем ЛГМ и ЛПД отливки
-            for number, name in lgm_casts + lpd_casts:
-                self.fields['cast_number'].addItem(number)
-                self.fields['cast_name'].addItem(name)
-                self.cast_numbers_data[number] = name
+            # Добавляем пустой элемент для возможности отмены выбора
+            self.fields['cast_number'].addItem("")
+            self.fields['cast_name'].addItem("")
             
-            # Добавляем прочие отливки
-            for (name,) in other_casts:
-                self.fields['cast_number'].addItem(name)
+            # Словарь для хранения соответствия и типа отливки
+            self.cast_data = {}  # Будет хранить (номер, наименование, тип)
+            
+            # Добавляем ЛГМ отливки
+            for number, name in lgm_casts:
+                self.fields['cast_number'].addItem(number)
+                self.cast_data[number] = {'name': name, 'type': 'ЛГМ'}
+            
+            # Добавляем ЛПД отливки
+            for number, name in lpd_casts:
+                self.fields['cast_number'].addItem(number)
+                self.cast_data[number] = {'name': name, 'type': 'ЛПД'}
+            
+            # Добавляем все наименования (ЛГМ, ЛПД и Прочие)
+            for number, name in lgm_casts + lpd_casts:
                 self.fields['cast_name'].addItem(name)
-                self.cast_numbers_data[name] = name
+            
+            # Добавляем прочие отливки только в список наименований
+            for (name,) in other_casts:
+                self.fields['cast_name'].addItem(name)
+                self.cast_data[name] = {'name': name, 'type': 'Прочие'}
 
             # Загружаем сборщиков
             self.db_cursor.execute('SELECT "ФИО" FROM "Сборщики"')
@@ -555,11 +574,49 @@ class MainWindow(QMainWindow):
     def update_cast_name(self, index):
         """Обновляет поле наименования при выборе номера отливки"""
         current_number = self.fields['cast_number'].currentText()
-        if current_number in self.cast_numbers_data:
-            name = self.cast_numbers_data[current_number]
-            index = self.fields['cast_name'].findText(name)
-            if index >= 0:
-                self.fields['cast_name'].setCurrentIndex(index)
+        
+        # Блокируем сигнал перед изменением
+        self.fields['cast_name'].blockSignals(True)
+        
+        if current_number and current_number in self.cast_data:
+            name = self.cast_data[current_number]['name']
+            self.fields['cast_name'].setCurrentText(name)
+        else:
+            # Если номер пустой или не найден, очищаем поле наименования
+            self.fields['cast_name'].setCurrentText("")
+        
+        self.fields['cast_name'].blockSignals(False)
+
+    def update_cast_number(self, index):
+        """Обновляет поле номера при выборе наименования отливки"""
+        current_name = self.fields['cast_name'].currentText()
+        
+        # Блокируем сигнал перед изменением
+        self.fields['cast_number'].blockSignals(True)
+        
+        if not current_name:
+            # Если наименование пустое, очищаем номер
+            self.fields['cast_number'].setCurrentText("")
+        else:
+            # Проверяем, является ли выбранное наименование прочей отливкой
+            is_other = any(data['type'] == 'Прочие' and data['name'] == current_name 
+                          for data in self.cast_data.values())
+            
+            if is_other:
+                # Если это прочая отливка, очищаем поле номера
+                self.fields['cast_number'].setCurrentText("")
+            else:
+                # Ищем номер для выбранного наименования среди ЛГМ и ЛПД
+                found = False
+                for number, data in self.cast_data.items():
+                    if data['name'] == current_name and data['type'] in ['ЛГМ', 'ЛПД']:
+                        self.fields['cast_number'].setCurrentText(number)
+                        found = True
+                        break
+                if not found:
+                    self.fields['cast_number'].setCurrentText("")
+        
+        self.fields['cast_number'].blockSignals(False)
 
     def generate_cluster_number(self):
         """Генерирует и устанавливает номер кластера на основе даты склейки"""
