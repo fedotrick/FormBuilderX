@@ -139,11 +139,13 @@ class MainWindow(QMainWindow):
         # Создаем выпадающие списки для номера и наименования отливки
         self.fields['cast_number'] = QComboBox()
         self.fields['cast_name'] = QComboBox()
+        self.fields['experiment_type'] = QComboBox()
         self.fields['cluster_number'] = QLineEdit()
 
         # Добавляем подсказки
         self.fields['cast_number'].setPlaceholderText("Выберите номер отливки")
         self.fields['cast_name'].setPlaceholderText("Выберите наименование отливки")
+        self.fields['experiment_type'].setPlaceholderText("Выберите тип эксперимента")
         self.fields['cluster_number'].setPlaceholderText("Нажмите 'Сгенерировать номер'")
 
         # Связываем изменение номера с обновлением наименования
@@ -162,6 +164,7 @@ class MainWindow(QMainWindow):
 
         layout.addRow(self.create_label("Номер отливки (модели):"), self.fields['cast_number'])
         layout.addRow(self.create_label("Наименование отливки (модели):"), self.fields['cast_name'])
+        layout.addRow(self.create_label("Тип эксперимента:"), self.fields['experiment_type'])
         layout.addRow(self.create_label("Номер кластера:"), number_layout)
 
         self.cast_group.setLayout(layout)
@@ -395,7 +398,7 @@ class MainWindow(QMainWindow):
                     print("Обрабатываем таблицу с номером отливки")
                     try:
                         # Заполняем данные отливки с маленьким жирным шрифтом
-                        for col in range(3):
+                        for col in range(4):
                             cell = table.cell(1, col)
                             paragraph = cell.text_frame.paragraphs[0]
                             run = paragraph.runs[0] if paragraph.runs else paragraph.add_run()
@@ -403,6 +406,8 @@ class MainWindow(QMainWindow):
                                 run.text = data['cast_number']
                             elif col == 1:
                                 run.text = data['cast_name']
+                            elif col == 2:
+                                run.text = data['experiment_type']
                             else:
                                 run.text = data['cluster_number']
                             run.font.size = Pt(9)
@@ -567,6 +572,12 @@ class MainWindow(QMainWindow):
             self.db_cursor.execute('SELECT "ФИО" FROM "Контролеры_Сборки"')
             controllers = [row[0] for row in self.db_cursor.fetchall()]
             self.fields['control_executor'].addItems(controllers)
+
+            # Загружаем типы эксперимента
+            self.db_cursor.execute('SELECT "Наименование" FROM "Типы_Эксперимента"')
+            experiment_types = [row[0] for row in self.db_cursor.fetchall()]
+            self.fields['experiment_type'].addItem("")  # Пустой элемент
+            self.fields['experiment_type'].addItems(experiment_types)
 
         except Exception as e:
             print(f"Ошибка при загрузке справочных данных: {e}")

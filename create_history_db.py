@@ -10,29 +10,29 @@ def create_history_database():
 
         # Создаем таблицу для хранения истории форм
         cursor.execute('''
-            CREATE TABLE IF NOT EXISTS "Маршрутные_Карты" (
-                "ИД" INTEGER PRIMARY KEY AUTOINCREMENT,
-                "Номер_Кластера" TEXT NOT NULL,
-                "Номер_Отливки" TEXT,
-                "Наименование_Отливки" TEXT,
-                "Отливка" TEXT,
-                "Дата_Склейки" TEXT,
-                "Исполнитель_Склейки" TEXT,
-                "Количество_Склейки" TEXT,
-                "Примечание_Склейки" TEXT,
-                "Дата_Контроля" TEXT,
-                "Время_Контроля" TEXT,
-                "Исполнитель_Контроля" TEXT,
-                "Количество_Контроля" TEXT,
-                "Примечание_Контроля" TEXT,
-                "Дата_Создания" TEXT
+            CREATE TABLE IF NOT EXISTS история_форм (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                номер_отливки TEXT,
+                наименование_отливки TEXT,
+                тип_эксперимента TEXT,
+                номер_кластера TEXT,
+                дата_склейки TEXT,
+                исполнитель_склейки TEXT,
+                количество_склейки TEXT,
+                примечание_склейки TEXT,
+                дата_контроля TEXT,
+                время_контроля TEXT,
+                исполнитель_контроля TEXT,
+                количество_контроля TEXT,
+                примечание_контроля TEXT,
+                дата_создания TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         ''')
 
         # Создаем уникальный индекс для номера кластера
         cursor.execute('''
             CREATE UNIQUE INDEX IF NOT EXISTS "idx_номер_кластера" 
-            ON "Маршрутные_Карты" ("Номер_Кластера")
+            ON история_форм ("номер_кластера")
         ''')
 
         conn.commit()
@@ -85,27 +85,26 @@ def save_form_data(data):
     
     # Добавляем новую запись
     cursor.execute('''
-        INSERT INTO "Маршрутные_Карты" (
-            "Номер_Кластера",
-            "Номер_Отливки",
-            "Наименование_Отливки",
-            "Отливка",
-            "Дата_Склейки",
-            "Исполнитель_Склейки",
-            "Количество_Склейки",
-            "Примечание_Склейки",
-            "Дата_Контроля",
-            "Время_Контроля",
-            "Исполнитель_Контроля",
-            "Количество_Контроля",
-            "Примечание_Контроля",
-            "Дата_Создания"
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO история_форм (
+            номер_отливки,
+            наименование_отливки,
+            тип_эксперимента,
+            номер_кластера,
+            дата_склейки,
+            исполнитель_склейки,
+            количество_склейки,
+            примечание_склейки,
+            дата_контроля,
+            время_контроля,
+            исполнитель_контроля,
+            количество_контроля,
+            примечание_контроля
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ''', (
-        data['cluster_number'],
         data['cast_number'],
         data['cast_name'],
-        cast_string,
+        data['experiment_type'],
+        data['cluster_number'],
         data['gluing_date'],
         data['gluing_executor'],
         data['gluing_quantity'],
@@ -114,8 +113,7 @@ def save_form_data(data):
         data['control_time'],
         data['control_executor'],
         data['control_quantity'],
-        data['control_notes'],
-        datetime.now().strftime("%d.%m.%Y %H:%M:%S")
+        data['control_notes']
     ))
     
     conn.commit()
@@ -140,10 +138,10 @@ def get_next_cluster_number(date_str):
     try:
         # Ищем последний номер для этого месяца и года
         cursor.execute('''
-            SELECT "Номер_Кластера"
-            FROM "Маршрутные_Карты"
-            WHERE "Номер_Кластера" LIKE ?
-            ORDER BY "Номер_Кластера" DESC
+            SELECT номер_кластера
+            FROM история_форм
+            WHERE номер_кластера LIKE ?
+            ORDER BY номер_кластера DESC
             LIMIT 1
         ''', (f'К{year_short}/{month:02d}-%',))
         

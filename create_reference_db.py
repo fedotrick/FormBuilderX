@@ -100,6 +100,27 @@ def create_reference_database():
             else:
                 print(f'Таблица "{table_name}" уже содержит данные, пропускаем заполнение.')
 
+        # Создаем таблицу типов эксперимента
+        cursor.execute('''
+        CREATE TABLE IF NOT EXISTS "Типы_Эксперимента" (
+            "ID" INTEGER PRIMARY KEY AUTOINCREMENT,
+            "Наименование" TEXT NOT NULL UNIQUE
+        )
+        ''')
+        
+        # Добавляем базовые типы эксперимента (примеры)
+        experiment_types = [
+            ("Тип 1",),
+            ("Тип 2",),
+            ("Тип 3",),
+            # Добавьте нужные типы эксперимента
+        ]
+        
+        cursor.executemany(
+            'INSERT OR IGNORE INTO "Типы_Эксперимента" ("Наименование") VALUES (?)',
+            experiment_types
+        )
+        
         # Сохраняем изменения и закрываем соединение
         conn.commit()
     except Exception as e:
