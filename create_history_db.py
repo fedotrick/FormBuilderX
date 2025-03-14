@@ -14,7 +14,7 @@ def create_history_database():
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 номер_отливки TEXT,
                 наименование_отливки TEXT,
-                тип_эксперимента TEXT,
+                тип_литниковой_системы TEXT,
                 номер_кластера TEXT,
                 дата_склейки TEXT,
                 исполнитель_склейки TEXT,
@@ -88,7 +88,7 @@ def save_form_data(data):
         INSERT INTO история_форм (
             номер_отливки,
             наименование_отливки,
-            тип_эксперимента,
+            тип_литниковой_системы,
             номер_кластера,
             дата_склейки,
             исполнитель_склейки,
@@ -103,7 +103,7 @@ def save_form_data(data):
     ''', (
         data['cast_number'],
         data['cast_name'],
-        data['experiment_type'],
+        data['gating_system_type'],
         data['cluster_number'],
         data['gluing_date'],
         data['gluing_executor'],
