@@ -15,6 +15,7 @@ import subprocess  # Добавляем в начало файла
 import time
 import sqlite3
 from create_history_db import save_form_data, validate_cluster_number, get_next_cluster_number
+from create_route_cards_db import update_cluster_number
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -136,6 +137,10 @@ class MainWindow(QMainWindow):
 
         self.fields = {}
         
+        # Добавляем поле выбора номера маршрутной карты
+        self.fields['route_card_number'] = QComboBox()
+        self.fields['route_card_number'].setPlaceholderText("Выберите номер маршрутной карты")
+        
         # Создаем выпадающие списки для номера и наименования отливки
         self.fields['cast_number'] = QComboBox()
         self.fields['cast_name'] = QComboBox()
@@ -162,6 +167,10 @@ class MainWindow(QMainWindow):
         self.generate_number_btn.clicked.connect(self.generate_cluster_number)
         number_layout.addWidget(self.generate_number_btn)
 
+        # Добавляем поле маршрутной карты в layout
+        layout.addRow(self.create_label("Номер маршрутной карты:"), 
+                     self.fields['route_card_number'])
+        
         layout.addRow(self.create_label("Номер отливки (модели):"), self.fields['cast_number'])
         layout.addRow(self.create_label("Наименование отливки (модели):"), self.fields['cast_name'])
         layout.addRow(self.create_label("Тип литниковой системы:"), self.fields['gating_system_type'])
@@ -293,31 +302,29 @@ class MainWindow(QMainWindow):
                 else:
                     data[field] = widget.text()
             
+            # Проверяем выбор маршрутной карты
+            if not data['route_card_number']:
+                QMessageBox.warning(self, "Предупреждение", 
+                                  "Необходимо выбрать номер маршрутной карты")
+                return
+
             # Генерируем форму и получаем путь к файлу
             output_path = self.generate_pptx_with_data("ШАБЛОН.pptx", data)
             
+            # Обновляем номер кластера в базе маршрутных карт
+            update_cluster_number(data['route_card_number'], data['cluster_number'])
+            
             # Сохраняем данные в базу истории
-            try:
-                save_form_data(data)
-            except ValueError as e:
-                QMessageBox.warning(self, "Предупреждение", str(e))
-                return
+            save_form_data(data)
             
             # Печатаем файл
             try:
                 if sys.platform == 'win32':  # Для Windows
                     # Используем команду для прямой печати файла
                     subprocess.run(['powershell', 'Start-Process', '-FilePath', output_path, 
-                                  '-Verb', 'Print', '-WindowStyle', 'Hidden'], shell=True)
-                    # Даем время на отправку на печать и закрываем PowerPoint
+                                   '-Verb', 'Print', '-WindowStyle', 'Hidden'], shell=True)
+                    # Даем время на отправку на печать
                     time.sleep(2)  # Ждем 2 секунды
-                    try:
-                        subprocess.run(['taskkill', '/F', '/IM', 'POWERPNT.EXE'], 
-                                     shell=True, 
-                                     stderr=subprocess.DEVNULL,
-                                     stdout=subprocess.DEVNULL)
-                    except:
-                        pass  # Игнорируем ошибку, если PowerPoint уже закрыт
                 else:  # Для Linux/Mac
                     subprocess.run(['lpr', output_path])
             except Exception as e:
@@ -525,6 +532,18 @@ class MainWindow(QMainWindow):
     def load_reference_data(self):
         """Загрузка справочных данных из базы"""
         try:
+            # Загружаем номера маршрутных карт
+            route_conn = sqlite3.connect('маршрутные_карты.db')
+            route_cursor = route_conn.cursor()
+            route_cursor.execute('SELECT "Номер_бланка" FROM маршрутные_карты')
+            route_cards = route_cursor.fetchall()
+            route_conn.close()
+
+            self.fields['route_card_number'].clear()
+            self.fields['route_card_number'].addItem("")
+            for (number,) in route_cards:
+                self.fields['route_card_number'].addItem(number)
+
             # Загружаем данные отливок
             self.db_cursor.execute('SELECT "Номер", "Наименование" FROM "ЛГМ_Отливки"')
             lgm_casts = self.db_cursor.fetchall()
