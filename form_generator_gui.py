@@ -20,7 +20,7 @@ from create_route_cards_db import update_cluster_number
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Генератор маршрутных карт")
+        self.setWindowTitle("Сборка и выпуск кластера")
         self.setMinimumWidth(800)
         self.setMinimumHeight(900)
         

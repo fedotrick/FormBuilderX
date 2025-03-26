@@ -3,13 +3,14 @@ import os
 
 PyInstaller.__main__.run([
     'form_generator_gui.py',
-    '--name=Генератор маршрутных карт. Версия 2.0.0',
+    '--name=Сборка кластера. Версия 1.0.0',
     '--onedir',
     '--windowed',
     '--icon=app.ico',
     '--add-data=ШАБЛОН.pptx;.',
     '--add-data=справочник.db;.',
     '--add-data=история_форм.db;.',
+    '--add-data=маршрутные_карты.db;.',
     '--add-data=app.ico;.',
     '--clean'
 ]) 
