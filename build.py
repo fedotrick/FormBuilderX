@@ -3,7 +3,7 @@ import os
 
 PyInstaller.__main__.run([
     'form_generator_gui.py',
-    '--name=Генератор маршрутных карт',
+    '--name=Генератор маршрутных карт. Версия 2.0.0',
     '--onedir',
     '--windowed',
     '--icon=app.ico',
